@@ -109,20 +109,33 @@
         const result = await firebase.auth().signInWithCustomToken(customToken);
         const uid = result.user.uid;
         logStatus('Signed in as ' + uid + '. Registering device...');
-        await firebase.firestore().collection('devices').doc(deviceId).set({
-          owner: ownerUid,
-          name: deviceId,
-          os: 'mobile-web',
-          lastSeen: firebase.firestore.FieldValue.serverTimestamp(),
-          online: true,
-          userAgent: navigator.userAgent,
+        const idToken = await result.user.getIdToken(true);
+        const response = await fetch('/register_phone', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            owner_uid: ownerUid,
+            device_id: deviceId,
+            id_token: idToken,
+            info: {
+              name: deviceId,
+              os: 'mobile-web',
+              userAgent: navigator.userAgent,
+            },
+          }),
         });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || response.statusText);
+        }
         typingSection.classList.remove('hidden');
         disconnectButton.classList.remove('hidden');
         signinButton.textContent = 'Refresh device registration';
-        logStatus('Signed in and device registered. Type a sample and save.');
+        logStatus('Signed in and device registered via backend. Type a sample and save.');
       } catch (error) {
-        logStatus('Sign-in failed: ' + error.message);
+        logStatus('Registration failed: ' + error.message);
       }
     }
 

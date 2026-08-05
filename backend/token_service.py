@@ -82,12 +82,28 @@ def register_phone():
     data = request.get_json() or {}
     device_id = data.get('device_id')
     owner_uid = data.get('owner_uid')
-    custom_token = data.get('custom_token')
+    id_token = data.get('id_token')
+    info = data.get('info', {})
 
-    if not device_id or not owner_uid or not custom_token:
-        return jsonify({'error': 'device_id, owner_uid, and custom_token are required'}), 400
+    if not device_id or not owner_uid or not id_token:
+        return jsonify({'error': 'device_id, owner_uid, and id_token are required'}), 400
 
-    return jsonify({'status': 'ready', 'message': 'Use the app client to sign in with the custom token and register the device.'})
+    try:
+        claims = verify_id_token(id_token)
+    except Exception as e:
+        return jsonify({'error': f'Invalid id token: {e}'}), 401
+
+    if not claims.get('service'):
+        return jsonify({'error': 'Service tokens are required for onboarding.'}), 403
+    if claims.get('device_id') != device_id:
+        return jsonify({'error': 'Device ID does not match token claims.'}), 403
+
+    try:
+        create_device(owner_uid, device_id, info)
+    except Exception as e:
+        return jsonify({'error': f'Failed to register device: {e}'}), 500
+
+    return jsonify({'status': 'ok', 'device_id': device_id})
 
 
 @app.route('/register_device', methods=['POST'])
