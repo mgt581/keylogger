@@ -2,6 +2,10 @@
 __pycache__/
 *.pyc
 
+# Ignore local tunnel binaries and archives
+/ngrok
+/ngrok-*.zip
+
 # Firebase service account (keep credentials out of the repo)
 /serviceAccountKey.json
 *.firebase-adminsdk-*.json

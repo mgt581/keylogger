@@ -1,16 +1,32 @@
 from __future__ import annotations
 
-from flask import Flask, request, jsonify, render_template
-from typing import Tuple, Optional
+import os
+import sys
+
+# Ensure repo root is on sys.path when running this module directly from backend/token_service.py.
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+from datetime import datetime
+from typing import List, Optional, Tuple
+
+from flask import Flask, jsonify, render_template, request
+from firebase_admin import auth
 
 from firebase_admin_init import init_firebase, verify_id_token
-from firebase_admin import auth
-from firebase_firestore import create_device
+from firebase_firestore import (
+    create_device,
+    get_device,
+    get_devices,
+    query_device_events,
+    rename_device,
+)
 
 app = Flask(
     __name__,
-    template_folder='templates',
-    static_folder='static',
+    template_folder=os.path.join(ROOT_DIR, 'templates'),
+    static_folder=os.path.join(ROOT_DIR, 'static'),
 )
 init_firebase()
 
@@ -99,6 +115,79 @@ def register_device():
         return jsonify({'error': f'Failed to create device: {e}'}), 500
 
     return jsonify({'status': 'ok', 'device_id': device_id})
+
+
+@app.route('/devices', methods=['GET'])
+def list_devices():
+    claims, err = _require_admin()
+    if err:
+        msg, code = err
+        return jsonify({'error': msg}), code
+
+    try:
+        devices = get_devices()
+        return jsonify({'devices': devices})
+    except Exception as e:
+        return jsonify({'error': f'Failed to fetch devices: {e}'}), 500
+
+
+@app.route('/devices/<device_id>', methods=['GET'])
+def get_device_detail(device_id: str):
+    claims, err = _require_admin()
+    if err:
+        msg, code = err
+        return jsonify({'error': msg}), code
+
+    try:
+        device = get_device(device_id)
+        if not device:
+            return jsonify({'error': 'Device not found'}), 404
+        return jsonify({'device': device})
+    except Exception as e:
+        return jsonify({'error': f'Failed to fetch device: {e}'}), 500
+
+
+@app.route('/devices/<device_id>/rename', methods=['POST'])
+def rename_device_route(device_id: str):
+    claims, err = _require_admin()
+    if err:
+        msg, code = err
+        return jsonify({'error': msg}), code
+
+    data = request.get_json() or {}
+    name = data.get('name')
+    if not name:
+        return jsonify({'error': 'Name is required'}), 400
+
+    try:
+        rename_device(device_id, name)
+        return jsonify({'status': 'ok', 'device_id': device_id})
+    except Exception as e:
+        return jsonify({'error': f'Failed to rename device: {e}'}), 500
+
+
+@app.route('/devices/<device_id>/events', methods=['GET'])
+def query_events(device_id: str):
+    claims, err = _require_admin()
+    if err:
+        msg, code = err
+        return jsonify({'error': msg}), code
+
+    start_ts = request.args.get('start')
+    end_ts = request.args.get('end')
+    categories = request.args.getlist('category')
+
+    try:
+        if not start_ts or not end_ts:
+            return jsonify({'error': 'start and end query parameters are required'}), 400
+        start = datetime.fromisoformat(start_ts)
+        end = datetime.fromisoformat(end_ts)
+        events = query_device_events(device_id, start, end, categories)
+        return jsonify({'events': events})
+    except ValueError:
+        return jsonify({'error': 'Invalid timestamp format; use ISO 8601'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to query events: {e}'}), 500
 
 
 if __name__ == '__main__':

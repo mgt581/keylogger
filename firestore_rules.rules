@@ -17,18 +17,26 @@ service cloud.firestore {
       allow read: if request.auth != null && (request.auth.uid == resource.data.owner || request.auth.token.admin == true);
 
       // create allowed when the authenticated user is the owner in the incoming data
+      // or when a trusted service token is creating the device on behalf of an owner.
       allow create: if request.auth != null
         && request.resource.data.owner is string
-        && request.resource.data.owner == request.auth.uid;
+        && (
+          request.resource.data.owner == request.auth.uid
+          || request.auth.token.service == true
+        );
 
       // update allowed for owner or admin
-      allow update: if request.auth != null && (request.auth.uid == resource.data.owner || request.auth.token.admin == true);
+      allow update: if request.auth != null && (request.auth.uid == resource.data.owner || request.auth.token.admin == true || request.auth.token.service == true);
       allow delete: if request.auth != null && (request.auth.uid == resource.data.owner || request.auth.token.admin == true);
 
       // Subcollection: logs for each device
       match /logs/{logId} {
         // device agents (service accounts / custom claim `service:true`) or the owner may write logs
-        allow write: if request.auth != null && (request.auth.token.service == true || request.auth.uid == resource.data.owner || request.auth.uid == request.resource.data.owner);
+        allow write: if request.auth != null && (
+          request.auth.token.service == true
+          || request.auth.uid == request.resource.data.owner
+          || request.auth.uid == resource.data.owner
+        );
         allow read: if request.auth != null && (request.auth.uid == resource.data.owner || request.auth.token.admin == true);
       }
     }

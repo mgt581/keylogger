@@ -30,7 +30,26 @@ def init_firebase() -> firebase_admin.App:
     if not cred_path:
         # default to project root serviceAccountKey.json
         base = os.path.dirname(__file__)
-        cred_path = os.path.abspath(os.path.join(base, "serviceAccountKey.json"))
+        project_root = os.path.abspath(os.path.join(base, ".."))
+        default_path = os.path.join(project_root, "serviceAccountKey.json")
+        if os.path.exists(default_path):
+            cred_path = default_path
+        else:
+            # fallback to any Firebase admin JSON key in the project root
+            candidate_files = [
+                os.path.join(project_root, fname)
+                for fname in os.listdir(project_root)
+                if fname.endswith('.json') and 'firebase-adminsdk' in fname
+            ]
+            if len(candidate_files) == 1:
+                cred_path = candidate_files[0]
+            elif len(candidate_files) > 1:
+                raise FileNotFoundError(
+                    "Multiple Firebase admin JSON candidates found in the project root. "
+                    "Set FIREBASE_SERVICE_ACCOUNT to the exact path you want to use."
+                )
+            else:
+                cred_path = default_path
 
     if not os.path.exists(cred_path):
         raise FileNotFoundError(
