@@ -18,6 +18,7 @@ from firebase_admin import auth
 from firebase_admin_init import init_firebase, verify_id_token
 from firebase_firestore import (
     create_device,
+    create_device_event,
     get_device,
     get_devices,
     query_device_events,
@@ -104,6 +105,38 @@ def register_phone():
         return jsonify({'error': f'Failed to register device: {e}'}), 500
 
     return jsonify({'status': 'ok', 'device_id': device_id})
+
+
+@app.route('/devices/<device_id>/events', methods=['POST'])
+def write_device_event(device_id: str):
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'Missing Authorization header'}), 401
+    id_token = auth_header.split(' ', 1)[1]
+    try:
+        claims = verify_id_token(id_token)
+    except Exception as e:
+        return jsonify({'error': f'Invalid id token: {e}'}), 401
+
+    if not claims.get('service'):
+        return jsonify({'error': 'Service tokens are required for event storage.'}), 403
+    if claims.get('device_id') != device_id:
+        return jsonify({'error': 'Device ID does not match token claims.'}), 403
+
+    data = request.get_json() or {}
+    event_type = data.get('event_type', 'typing_sample')
+    payload = data.get('payload', {})
+    extra = data.get('extra', {})
+
+    if not payload:
+        return jsonify({'error': 'payload is required'}), 400
+
+    try:
+        create_device_event(device_id, event_type, payload, extra)
+    except Exception as e:
+        return jsonify({'error': f'Failed to save event: {e}'}), 500
+
+    return jsonify({'status': 'ok', 'device_id': device_id, 'event_type': event_type})
 
 
 @app.route('/register_device', methods=['POST'])

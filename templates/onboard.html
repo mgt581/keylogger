@@ -151,13 +151,28 @@
         return;
       }
       try {
-        await firebase.firestore().collection('devices').doc(deviceId).collection('logs').add({
-          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-          type: 'typing_sample',
-          text,
-          deviceId,
+        const user = firebase.auth().currentUser;
+        if (!user) {
+          logStatus('Please sign in first.');
+          return;
+        }
+        const idToken = await user.getIdToken(true);
+        const response = await fetch(`/devices/${encodeURIComponent(deviceId)}/events`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + idToken,
+          },
+          body: JSON.stringify({
+            event_type: 'typing_sample',
+            payload: { text },
+          }),
         });
-        logStatus('Typing sample saved to Firestore.');
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || response.statusText);
+        }
+        logStatus('Typing sample saved via backend.');
         typingArea.value = '';
       } catch (error) {
         logStatus('Failed to save typing sample: ' + error.message);
