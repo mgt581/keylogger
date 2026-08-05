@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from typing import Tuple, Optional
 
 from firebase_admin_init import init_firebase, verify_id_token
 from firebase_admin import auth
 from firebase_firestore import create_device
 
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder='templates',
+    static_folder='static',
+)
 init_firebase()
 
 
@@ -44,6 +48,24 @@ def mint_device_token():
     token = auth.create_custom_token(uid, {'service': True, 'device_id': device_id})
     token_str = token.decode('utf-8') if isinstance(token, bytes) else token
     return jsonify({'custom_token': token_str})
+
+
+@app.route('/onboard', methods=['GET'])
+def onboarding_page():
+    return render_template('onboard.html')
+
+
+@app.route('/register_phone', methods=['POST'])
+def register_phone():
+    data = request.get_json() or {}
+    device_id = data.get('device_id')
+    owner_uid = data.get('owner_uid')
+    custom_token = data.get('custom_token')
+
+    if not device_id or not owner_uid or not custom_token:
+        return jsonify({'error': 'device_id, owner_uid, and custom_token are required'}), 400
+
+    return jsonify({'status': 'ready', 'message': 'Use the app client to sign in with the custom token and register the device.'})
 
 
 @app.route('/register_device', methods=['POST'])

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Device Onboarding</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 640px; }
+    label { display: block; margin: 12px 0 4px; font-weight: bold; }
+    input, textarea, button { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; }
+    button { cursor: pointer; background: #1976d2; color: white; border: none; }
+    .note { font-size: 0.95rem; color: #444; }
+    .output { white-space: pre-wrap; background: #f4f4f4; padding: 12px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Device Onboarding</h1>
+  <p class="note">Paste the custom token you received from the admin backend and your device ID. This page only helps prepare the onboarding values.</p>
+
+  <label for="owner_uid">Owner UID</label>
+  <input id="owner_uid" placeholder="Enter your Firebase owner UID" />
+
+  <label for="device_id">Device ID</label>
+  <input id="device_id" placeholder="partner-phone-01" />
+
+  <label for="custom_token">Custom Token</label>
+  <textarea id="custom_token" rows="4" placeholder="Paste the custom token here"></textarea>
+
+  <button id="submitButton">Save onboarding info</button>
+
+  <div class="output" id="output"></div>
+
+  <script>
+    const submitButton = document.getElementById('submitButton');
+    const output = document.getElementById('output');
+    submitButton.addEventListener('click', async () => {
+      const owner_uid = document.getElementById('owner_uid').value.trim();
+      const device_id = document.getElementById('device_id').value.trim();
+      const custom_token = document.getElementById('custom_token').value.trim();
+      if (!owner_uid || !device_id || !custom_token) {
+        output.textContent = 'Please fill all fields.';
+        return;
+      }
+      output.textContent = 'Onboarding info saved locally. You must still sign in with Firebase custom token in the device client.';
+      localStorage.setItem('onboard_owner_uid', owner_uid);
+      localStorage.setItem('onboard_device_id', device_id);
+      localStorage.setItem('onboard_custom_token', custom_token);
+    });
+  </script>
+</body>
+</html>
