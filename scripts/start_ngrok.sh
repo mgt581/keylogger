@@ -18,14 +18,16 @@ if ./.venv/bin/python -c "import importlib.util; importlib.util.find_spec('pyngr
   PYNGROK_AVAILABLE=true
 fi
 
-if command -v ngrok >/dev/null 2>&1; then
+if [ -x "$HOME/Library/Application Support/ngrok/ngrok" ]; then
+  NGROK_CMD="$HOME/Library/Application Support/ngrok/ngrok"
+elif command -v ngrok >/dev/null 2>&1; then
   NGROK_CMD="ngrok"
 elif [ -x "./ngrok" ]; then
   NGROK_CMD="./ngrok"
 fi
 
 if [ -n "$NGROK_CMD" ]; then
-  NGROK_VERSION=$($NGROK_CMD version 2>/dev/null | awk '{print $3}' || true)
+  NGROK_VERSION=$("$NGROK_CMD" version 2>/dev/null | awk '{print $3}' || true)
   if [ -n "$NGROK_VERSION" ]; then
     NGROK_MAJOR=${NGROK_VERSION%%.*}
     if [ "$NGROK_MAJOR" -lt 3 ]; then
@@ -40,6 +42,8 @@ if [ -n "$NGROK_CMD" ]; then
   fi
 fi
 
+BACKEND_PORT="${BACKEND_PORT:-5000}"
+
 if [ "$USE_PYNGROK" = false ] && [ -z "$NGROK_CMD" ]; then
   if [ "$PYNGROK_AVAILABLE" = true ]; then
     USE_PYNGROK=true
@@ -51,8 +55,9 @@ if [ "$USE_PYNGROK" = false ] && [ -z "$NGROK_CMD" ]; then
 fi
 
 if [ -f "backend/token_service.py" ]; then
-  echo "Starting backend server..."
-  ./.venv/bin/python backend/token_service.py &
+  echo "Starting backend server on port $BACKEND_PORT..."
+  BACKEND_PORT_ARG="--port=$BACKEND_PORT"
+  ./.venv/bin/python backend/token_service.py $BACKEND_PORT_ARG &
   BACKEND_PID=$!
 else
   echo "Error: backend/token_service.py not found."
@@ -84,12 +89,13 @@ import os
 ngrok_token = os.getenv('NGROK_AUTHTOKEN') or os.getenv('NGROK_AUTH_TOKEN')
 if ngrok_token:
     ngrok.set_auth_token(ngrok_token)
-public_url = ngrok.connect(5000, bind_tls=True).public_url
+backend_port = int(os.getenv('BACKEND_PORT', '5000'))
+public_url = ngrok.connect(backend_port, bind_tls=True).public_url
 print('Public URL:', public_url)
 sleep(999999)
 PY
 else
-  NGROK_VERSION=$($NGROK_CMD version 2>/dev/null | awk '{print $3}')
+  NGROK_VERSION=$("$NGROK_CMD" version 2>/dev/null | awk '{print $3}')
   if [ -n "$NGROK_VERSION" ]; then
     NGROK_MAJOR=${NGROK_VERSION%%.*}
     if [ "$NGROK_MAJOR" -lt 3 ]; then
@@ -98,8 +104,8 @@ else
     fi
   fi
 
-  echo "Starting ngrok on port 5000..."
-  $NGROK_CMD http 5000
+  echo "Starting ngrok on port $BACKEND_PORT..."
+  $NGROK_CMD http "$BACKEND_PORT"
 fi
 
 # ngrok runs in foreground; when it exits the trap will stop the backend.

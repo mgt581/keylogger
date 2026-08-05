@@ -10,6 +10,7 @@ if ROOT_DIR not in sys.path:
 
 from datetime import datetime
 from typing import List, Optional, Tuple
+import argparse
 
 from flask import Flask, jsonify, render_template, request
 from firebase_admin import auth
@@ -191,4 +192,7 @@ def query_events(device_id: str):
 
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=int(os.environ.get('BACKEND_PORT', '5000')))
+    args = parser.parse_args()
+    app.run(host='127.0.0.1', port=args.port, debug=False, use_reloader=False)

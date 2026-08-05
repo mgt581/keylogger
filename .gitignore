@@ -4,7 +4,11 @@ __pycache__/
 
 # Ignore local tunnel binaries and archives
 /ngrok
+/ngrok-v3
 /ngrok-*.zip
+
+# Local runtime artifacts
+/log.txt
 
 # Firebase service account (keep credentials out of the repo)
 /serviceAccountKey.json
