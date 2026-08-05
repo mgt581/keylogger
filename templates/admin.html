@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Token Generator</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; max-width: 640px; }
+    label { display: block; margin: 12px 0 4px; font-weight: bold; }
+    input, textarea, button { width: 100%; padding: 10px; margin-bottom: 12px; border: 1px solid #ccc; border-radius: 6px; }
+    button { cursor: pointer; background: #1976d2; color: white; border: none; }
+    .output { white-space: pre-wrap; background: #f4f4f4; padding: 12px; border-radius: 6px; min-height: 80px; }
+  </style>
+</head>
+<body>
+  <h1>Admin Token Generator</h1>
+  <p>Enter your Firebase web config and admin credentials to sign in, then generate a partner custom token.</p>
+
+  <label for="firebase_config">Firebase Web Config (JSON)</label>
+  <textarea id="firebase_config" rows="6" placeholder='Paste the Firebase web config JSON here'></textarea>
+
+  <label for="email">Admin Email</label>
+  <input id="email" placeholder="admin@example.com" />
+
+  <label for="password">Admin Password</label>
+  <input id="password" type="password" placeholder="Admin password" />
+
+  <button id="signinButton">Sign in as Admin</button>
+  <button id="signoutButton" class="hidden">Sign out</button>
+
+  <div id="adminSection" class="hidden">
+    <label for="partner_device_id">Partner Device ID</label>
+    <input id="partner_device_id" placeholder="partner-phone-01" />
+    <button id="generateTokenButton">Generate Partner Token</button>
+    <div class="output" id="output"></div>
+  </div>
+
+  <script>
+    const firebaseConfigEl = document.getElementById('firebase_config');
+    const emailEl = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
+    const signinButton = document.getElementById('signinButton');
+    const signoutButton = document.getElementById('signoutButton');
+    const adminSection = document.getElementById('adminSection');
+    const generateTokenButton = document.getElementById('generateTokenButton');
+    const output = document.getElementById('output');
+    const partnerDeviceIdEl = document.getElementById('partner_device_id');
+
+    function log(text) {
+      output.textContent = text;
+    }
+
+    function initFirebase(configText) {
+      try {
+        const config = JSON.parse(configText);
+        firebase.initializeApp(config);
+        return true;
+      } catch (error) {
+        log('Invalid Firebase config JSON.');
+        return false;
+      }
+    }
+
+    async function signIn() {
+      const configText = firebaseConfigEl.value.trim();
+      if (!configText) { log('Firebase config is required.'); return; }
+      if (!initFirebase(configText)) return;
+      const email = emailEl.value.trim();
+      const password = passwordEl.value.trim();
+      if (!email || !password) { log('Email and password are required.'); return; }
+      try {
+        await firebase.auth().signInWithEmailAndPassword(email, password);
+        log('Signed in as admin.');
+        adminSection.classList.remove('hidden');
+        signoutButton.classList.remove('hidden');
+        signinButton.classList.add('hidden');
+      } catch (error) {
+        log('Sign-in failed: ' + error.message);
+      }
+    }
+
+    async function signOut() {
+      try {
+        await firebase.auth().signOut();
+        log('Signed out.');
+        adminSection.classList.add('hidden');
+        signoutButton.classList.add('hidden');
+        signinButton.classList.remove('hidden');
+      } catch (error) {
+        log('Sign-out failed: ' + error.message);
+      }
+    }
+
+    async function generateToken() {
+      const deviceId = partnerDeviceIdEl.value.trim();
+      if (!deviceId) { log('Device ID is required.'); return; }
+      try {
+        const idToken = await firebase.auth().currentUser.getIdToken();
+        const response = await fetch('/mint_device_token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + idToken,
+          },
+          body: JSON.stringify({ device_id: deviceId }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          log('Error: ' + (data.error || response.statusText));
+          return;
+        }
+        log('Custom token generated:\n' + data.custom_token + '\n\nSend this to the partner and use /onboard.');
+      } catch (error) {
+        log('Token generation failed: ' + error.message);
+      }
+    }
+
+    signinButton.addEventListener('click', signIn);
+    signoutButton.addEventListener('click', signOut);
+    generateTokenButton.addEventListener('click', generateToken);
+  </script>
+</body>
+</html>

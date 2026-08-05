@@ -50,6 +50,11 @@ def mint_device_token():
     return jsonify({'custom_token': token_str})
 
 
+@app.route('/admin', methods=['GET'])
+def admin_page():
+    return render_template('admin.html')
+
+
 @app.route('/onboard', methods=['GET'])
 def onboarding_page():
     return render_template('onboard.html')
