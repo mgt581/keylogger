@@ -5,6 +5,7 @@ from typing import Tuple, Optional
 
 from firebase_admin_init import init_firebase, verify_id_token
 from firebase_admin import auth
+from firebase_firestore import create_device
 
 app = Flask(__name__)
 init_firebase()
@@ -43,6 +44,34 @@ def mint_device_token():
     token = auth.create_custom_token(uid, {'service': True, 'device_id': device_id})
     token_str = token.decode('utf-8') if isinstance(token, bytes) else token
     return jsonify({'custom_token': token_str})
+
+
+@app.route('/register_device', methods=['POST'])
+def register_device():
+    """Admin-only helper to create a device record in Firestore for testing.
+
+    Payload: {"device_id": "...", "owner_uid": "...", "info": {...}}
+    This exists to let an admin quickly register a device while testing the
+    client onboarding flow (minting tokens + device registration).
+    """
+    claims, err = _require_admin()
+    if err:
+        msg, code = err
+        return jsonify({'error': msg}), code
+
+    data = request.get_json() or {}
+    device_id = data.get('device_id')
+    owner_uid = data.get('owner_uid')
+    info = data.get('info', {})
+    if not device_id or not owner_uid:
+        return jsonify({'error': 'device_id and owner_uid are required'}), 400
+
+    try:
+        create_device(owner_uid, device_id, info)
+    except Exception as e:
+        return jsonify({'error': f'Failed to create device: {e}'}), 500
+
+    return jsonify({'status': 'ok', 'device_id': device_id})
 
 
 if __name__ == '__main__':
