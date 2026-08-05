@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    // Users collection: locked to the user and admins.
+    // If a user document marks a child (`isChild == true`) then `parentVerified` must be true
+    // before any tracking data can be written referencing that user.
+    match /users/{uid} {
+      allow create: if isSignedIn() && request.auth.uid == uid;
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow update, delete: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Prevent introducing unverified child records.
+      allow write: if isSignedIn() && (request.auth.uid == uid || isAdmin())
+        && !(request.resource.data.isChild == true && request.resource.data.parentVerified != true);
+    }
+
+    // Devices: owner must match authenticated uid on create; only owner or admin can update/delete.
+    match /devices/{deviceId} {
+      allow read: if isSignedIn() && (resource.data.owner == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.owner == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.owner == request.auth.uid || isAdmin());
+
+      // Device logs subcollection: writes should come from trusted service tokens or server-side processes.
+      match /logs/{logId} {
+        // Allow create from service tokens (custom claim `service:true`) or the device owner via server-issued short-lived tokens.
+        allow create: if isSignedIn() && (request.auth.token.service == true || request.auth.uid == resource.data.owner || request.auth.uid == get(/databases/$(database)/documents/devices/$(deviceId)).data.owner);
+
+        // Reads allowed only to device owner or admins.
+        allow read: if isSignedIn() && (request.auth.uid == get(/databases/$(database)/documents/devices/$(deviceId)).data.owner || isAdmin());
+
+        // Deletions reserved for administrators (e.g., GDPR/retention operations run server-side).
+        allow delete: if isAdmin();
+      }
+    }
+
+    // Default: deny everything else.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
